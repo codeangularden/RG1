@@ -1,0 +1,1163 @@
+-----------App.js-----------
+var app = angular.module('LibraryApp', ['ngRoute']);
+
+
+-------end App.js---------------
+
+----------routes.js-----------------
+
+app.filter('unique', function () {
+
+    return function (items, filterOn) {
+
+        if (filterOn === false) {
+            return items;
+        }
+
+        if ((filterOn || angular.isUndefined(filterOn)) && angular.isArray(items)) {
+            var hashCheck = {}, newItems = [];
+
+            var extractValueToCompare = function (item) {
+                if (angular.isObject(item) && angular.isString(filterOn)) {
+                    return item[filterOn];
+                } else {
+                    return item;
+                }
+            };
+
+            angular.forEach(items, function (item) {
+                var valueToCheck, isDuplicate = false;
+
+                for (var i = 0; i < newItems.length; i++) {
+                    if (angular.equals(extractValueToCompare(newItems[i]), extractValueToCompare(item))) {
+                        isDuplicate = true;
+                        break;
+                    }
+                }
+                if (!isDuplicate) {
+                    newItems.push(item);
+                }
+
+            });
+            items = newItems;
+        }
+        return items;
+    };
+});
+
+
+app.config(['$routeProvider', function ($routeProvider) {
+
+
+    $routeProvider
+    .when('/Add',
+    {
+        templateUrl: 'Library/AddNewRecord',
+        controller: 'AddBookCtrl'
+    })
+    .when('/List',
+    {
+        templateUrl:'Library/ListRecords',
+        controller:'GetBooksCtrl'
+    })
+    .when('/UpdateRecord/:id',
+    {
+        templateUrl:'Library/UpdateRecord',
+        controller:'EditBooksCtrl'
+    })
+    .when('/M',
+    {
+        templateUrl: 'Library/AddMember',
+        controller: 'AddBookCtrl'
+    })
+    .when('/Issue',
+    {
+        templateUrl: 'Library/BookIssue',
+        controller: 'BookIssueCtrl'
+    });
+    
+
+
+} ]);
+
+----------end routes.js-------------
+
+--------- Add Controller  ------------
+
+app.controller('AddBookCtrl', function ($scope, $http) {
+
+    console.log('test123');
+    $scope.Welcome = 'Welcome !!!';
+
+    $scope.SavetoLocal = function () {
+        debugger;
+        var myLocalList = []; //load existing array at init        
+        var key = 'myLocal';
+
+        if (localStorage.getItem("myLocal") != null) {
+            myLocalList = JSON.parse(localStorage.getItem("myLocal"));
+        }
+        myLocalList.push(JSON.stringify($scope.Book));
+        localStorage.setItem(key, JSON.stringify(myLocalList));
+
+
+    };
+
+    $scope.Save = function () {
+
+        var book = { Book: JSON.stringify($scope.Book) };
+
+        $http.post('http://localhost:18879/Library/Add', book)
+        .success(function (resp) {
+            if (resp == "True") {
+                alert('Record added successfully!!!');
+                $scope.Book = {};
+            } else {
+                alert('Error Occured');
+            }
+
+        })
+        .error(function (error) {
+            alert('Error Occured: ' + error);
+        });
+    };
+
+    $scope.Register = function () {
+
+        var member = { Member: JSON.stringify($scope.Member) };
+
+        $http.post('http://localhost:18879/Library/RegisterMember', member)
+        .success(function (resp) {
+            if (resp == "True") {
+                alert('Record added successfully!!!');
+                $scope.Member = {};
+            } else {
+                alert('Error Occured');
+            }
+
+        })
+        .error(function (error) {
+            alert('Error Occured: ' + error);
+        });
+    };
+
+});
+----------end Add Controller  ----------------
+
+
+--------- Get Controller  ---------------------
+
+app.controller('GetBooksCtrl', function ($scope, $http, $location) {
+
+    var getAllRecords = function () {
+
+        $scope.locatdata = JSON.parse(localStorage.getItem('myLocal'));
+        
+        $http.get('http://localhost:18879/Library/Get')
+        .success(function (data) {
+            
+            $scope.BookList = data;
+//            angular.forEach($scope.BookList, function(value, key) {
+//                    $scope.BookList[key].EntryDate = new Date($scope.BookList[key].EntryDate) 
+//                    //console.log(key+ ' - '+$scope.BookList[key].EntryDate);                   
+//                });
+        })
+        .error(function (error) {
+            console.log('Error :' + error);
+        });
+
+    };
+
+    getAllRecords();
+
+    $scope.updateRecord = function (id) {
+        $location.path('/UpdateRecord/'+ id);
+    };
+
+    $scope.deleteRecord = function (id) {
+        $http.delete('http://localhost:18879/Library/Delete?id='+id)
+        .success(function(resp){
+            alert('Removed successfully!!');
+            getAllRecords(); 
+         })
+        .error(function(error){
+            console.log('Error: '+error);
+         });
+    };
+
+    $scope.sortOrder = false;
+        $scope.order = function (x) {
+            $scope.myorder = x;
+            $scope.sortOrder = !$scope.sortOrder;
+        }
+
+       
+        $scope.exportData = function () {
+            console.log('export');
+       alasql('SELECT * INTO XLSX("mydata.xlsx",{headers:true}) FROM ?',[$scope.BookList]);
+    };
+    
+
+});
+
+---------End  Get Controller  ---------------------
+
+--------- update Controller  ---------------------
+
+app.controller('EditBooksCtrl', function ($scope, $http, $routeParams) {
+    console.log('At Edit Ctrl 123');
+
+    if ($routeParams.id) {
+        console.log($routeParams.id);
+        $http.get('http://localhost:18879/Library/GetByID?id=' + $routeParams.id)
+        .success(function (data) {
+            $scope.Book = data[0];
+            $scope.Book.EntryDate = new Date($scope.Book.EntryDate);
+            console.log(data);
+        })
+        .error(function (error) { console.log('Error : ' + error); });
+    };
+
+    $scope.UpdateRecordById = function () {
+        var book = { Book: JSON.stringify($scope.Book) };
+        $http.put('http://localhost:18879/Library/UpdateByID?id=' + $routeParams.id, book)
+        .success(function (resp) {
+            console.log('Saved Successfully!!');
+            $scope.Book = {};
+            location.path('/List');
+        })
+        .error(function (error) { console.log('Error : ' + error); });
+    }
+
+});
+
+---------End  update Controller  ---------------------
+
+
+---------- Book Issue Controller  -----------------
+
+
+app.controller('BookIssueCtrl', function ($scope, $http, $location) {
+
+    var getAllRecords = function () {
+
+        $scope.locatdata = JSON.parse(localStorage.getItem('myLocal'));
+        
+        $http.get('http://localhost:18879/Library/Get')
+        .success(function (data) {
+            
+            $scope.BookList = data;
+//            angular.forEach($scope.BookList, function(value, key) {
+//                    $scope.BookList[key].EntryDate = new Date($scope.BookList[key].EntryDate) 
+//                    //console.log(key+ ' - '+$scope.BookList[key].EntryDate);                   
+//                });
+        })
+        .error(function (error) {
+            console.log('Error :' + error);
+        });
+
+    };
+
+    getAllRecords();
+
+
+     $scope.IssueBook = function () {
+        console.log($scope.Issue);
+
+        var issue = { Issue: JSON.stringify($scope.Issue) };
+
+        $http.post('http://localhost:18879/Library/IssueBook', issue)
+        .success(function (resp) {
+            if (resp == "True") {
+                alert('Record added successfully!!!');
+                $scope.Issue = {};
+            } else {
+                alert('Error Occured');
+            }
+
+        })
+        .error(function (error) {
+            alert('Error Occured: ' + error);
+        });
+    };
+
+   
+
+    
+    
+
+});
+
+---------- End Book Issue Controller  -----------
+-------------- Index ------------------
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Bootstrap Example</title>
+  @*    @Styles.Render("~/Content/css")
+    @Scripts.Render("~/bundles/modernizr")*@
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.0/jquery.min.js"></script>
+  <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>
+  <script src="../../Scripts/angular.js"></script>
+  <script src="../../Scripts/angular-route.js"></script>
+  <script src="http://alasql.org/console/alasql.min.js"></script>
+  <script src="http://alasql.org/console/xlsx.core.min.js"></script>
+  <script src="../../ClientScripts/App.js"></script>
+  <script src="../../ClientScripts/route.js"></script>
+  <script src="../../ClientScripts/AddBookCtrl.js"></script>
+  <script src="../../ClientScripts/GetBooksCtrl.js"></script>
+  <script src="../../ClientScripts/EditBooksCtrl.js"></script>
+  <script src="../../ClientScripts/BookIssueCtrl.js"></script>
+  <style>
+    /* Remove the navbar's default margin-bottom and rounded borders */ 
+    .navbar {
+      margin-bottom: 0;
+      border-radius: 0;
+    }
+    
+    /* Set height of the grid so .sidenav can be 100% (adjust as needed) */
+    .row.content {height: 450px}
+    
+    /* Set gray background color and 100% height */
+    .sidenav {
+      padding-top: 20px;
+      background-color: #f1f1f1;
+      height: 100%;
+    }
+    
+    /* Set black background color, white text and some padding */
+    footer {
+      background-color: #555;
+      color: white;
+      padding: 15px;
+    }
+    
+    
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-inverse">
+  <div class="container-fluid">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#myNavbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>                        
+      </button>
+      <a class="navbar-brand" href="#">Logo</a>
+    </div>
+    <div class="collapse navbar-collapse" id="myNavbar">
+      <ul class="nav navbar-nav">
+        <li class="active"><a href="#">Home</a></li>
+        <li><a href="#">About</a></li>
+        <li><a href="#">Projects</a></li>
+        <li><a href="#">Contact</a></li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        <li><a href="#"><span class="glyphicon glyphicon-log-in"></span> Login</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+
+<div class="container-fluid text-center">    
+  <div class="row content">
+    <div class="col-sm-2 sidenav">
+      <p><a href="#Add">Add New Books</a></p>
+      <p><a href="#M">New Member Registration</a></p>
+      <p><a href="#Issue">Issue Books</a></p>
+      <p><a href="#List">Search Books</a></p>
+      
+    </div>
+    <div class="col-sm-8 text-left"> 
+      
+      <div ng-app="LibraryApp">
+
+      
+      <div ng-view></div>
+</div>
+
+    </div>
+    
+  </div>
+</div>
+
+
+<footer class="container-fluid text-center">
+  <p>Footer Text</p>
+</footer>
+
+</body>
+</html>
+
+
+
+---------------End Index  ---------------
+
+---------------AddNewBook -------------------------------
+
+<form class="form-horizontal">
+<fieldset>
+
+<!-- Form Name -->
+<legend>Book Entry</legend>
+
+
+<!-- Text input-->
+<div class="form-group">
+  <label class="col-md-4 control-label" for="txtbookTitle">Book Title</label>  
+  <div class="col-md-4">
+  <input id="txtbookTitle" name="txtbookTitle" type="text" placeholder="Book Title" class="form-control input-md" ng-model="Book.Title"/>
+    
+  </div>
+</div>
+
+<!-- Select Multiple -->
+<div class="form-group">
+  <label class="col-md-4 control-label" for="ddAuthor">Author</label>
+  <div class="col-md-4">
+    <select id="ddAuthor" name="ddAuthor" class="form-control" multiple="multiple" ng-model="Book.Author">
+      <option value="A. A. Milne" >A. A. Milne</option>
+      <option value="Agatha Christie" >Agatha Christie</option>
+      <option value="Amish Tripathi" >Amish Tripathi</option>
+      <option value="Graham Greene" >Graham Greene</option>
+      <option value="Yashwant Kanetkar" >Yashwant Kanetkar</option>
+      <option value="Milan Kundera" >Milan Kundera</option>
+      <option value="R. K. Narayan" >R. K. Narayan</option>
+    </select>
+  </div>
+</div>
+
+<div class="form-group">
+  <label class="col-md-4 control-label" for="ddPublication">Publications</label>
+  <div class="col-md-4">
+    <select id="ddPublication" name="ddPublication" class="form-control" ng-model="Book.Publications">
+      <option value="IEEE" >IEEE</option>
+      <option value="Oxford" >Oxford</option>
+      <option value="Sun" >Sun</option>
+      <option value="Pragati" >Pragati</option>
+      <option value="Navneet" >Navneet</option>
+    </select>
+  </div>
+</div>
+
+
+
+<!-- Text input-->
+<div class="form-group">
+  <label class="col-md-4 control-label" for="txtISBN">ISBN Number</label>  
+  <div class="col-md-4">
+  <input id="txtISBN" name="txtISBN" type="text" placeholder="ISBN Number" class="form-control input-md" ng-model="Book.ISBN"/>
+    
+  </div>
+</div>
+
+
+<!-- Multiple Checkboxes -->
+<div class="form-group">
+  <label class="col-md-4 control-label" for="cbCategory">Category</label>
+  <div class="col-md-4">
+  <div class="checkbox">
+    <label for="cbCategory-0">
+      <input type="checkbox" ng-model="Book.Category.Educational" name="cbCategory" id="cbCategory-0" value="Educational">
+      Educational
+    </label>
+	</div>
+  <div class="checkbox">
+    <label for="cbCategory-1">
+      <input type="checkbox" ng-model="Book.Category.Fiction" name="cbCategory" id="cbCategory-1" value="Fiction">
+      Fiction
+    </label>
+	</div>
+  <div class="checkbox">
+    <label for="cbCategory-2">
+      <input type="checkbox" ng-model="Book.Category.Nonfiction" name="cbCategory" id="cbCategory-2" value="Non-fiction">
+      Non-fiction
+    </label>
+	</div>
+  <div class="checkbox">
+    <label for="cbCategory-3">
+      <input type="checkbox" ng-model="Book.Category.Magzine" name="cbCategory" id="cbCategory-3" value="Magzine">
+      Magzine
+    </label>
+	</div>
+  </div>
+</div>
+
+<!-- Multiple Radios -->
+<div class="form-group">
+  <label class="col-md-4 control-label" for="rdAdvanceLvl">Book Type</label>
+  <div class="col-md-4">
+  <div class="radio">
+    <label for="rdAdvanceLvl-0">
+      <input type="radio" ng-model="Book.BookType.Basic" name="rdAdvanceLvl" id="rdAdvanceLvl-0" value="Basic" >
+      Basic
+    </label>
+	</div>
+  <div class="radio">
+    <label for="rdAdvanceLvl-1">
+      <input type="radio" ng-model="Book.BookType.Intermediate" name="rdAdvanceLvl" id="rdAdvanceLvl-1" value="Intermediate">
+      Intermediate
+    </label>
+	</div>
+  <div class="radio">
+    <label for="rdAdvanceLvl-2">
+      <input type="radio"ng-model="Book.BookType.Advance" name="rdAdvanceLvl" id="rdAdvanceLvl-2" value="Advance">
+      Advance
+    </label>
+	</div>
+  </div>
+</div>
+
+<div class="form-group">
+  <label class="col-md-4 control-label" >Entry Date</label>
+  <div class="col-md-4">
+      <input type="date" class="form-control" ng-model="Book.EntryDate" />
+  </div>
+</div>
+
+<div class="form-group">
+  <label class="col-md-4 control-label" for="btnSave"></label>
+  <div class="col-md-4">
+    <button id="btnSave" name="btnSave" class="btn btn-success" ng-click="Save()">Save</button>
+  </div>
+</div>
+
+</fieldset>
+</form>
+
+---------------end AddNewBook -------------------------------
+
+-----------------List Books-----------------------------
+
+<div>
+
+@*{{locatdata}}*@
+
+    <input type="text" ng-model="search" class="glyphicon glyphicon-search" />
+    <table class="table table-bordered">
+        <tr>
+            <th ng-click="order('Title')" style="cursor: pointer">
+                Book Title
+            </th>
+            <th ng-click="order('Author')" style="cursor: pointer">
+                Author
+            </th>
+            <th ng-click="order('Publications')" style="cursor: pointer">
+                Publications
+            </th>
+            <th ng-click="order('EntryDate')" style="cursor: pointer">
+                Count
+            </th>
+            <th>
+                Update
+            </th>
+            <th>
+                Delete
+            </th>
+        </tr>
+        <tr ng-repeat="Book in BookList | filter:search | orderBy: myorder :sortOrder | unique:'Title'">
+            <td>
+                <span style="display: none;">{{Book._id.$oid}}</span> {{Book.Title}}
+            </td>
+            <td>
+                <table class="table table-bordered">
+                    <tr ng-repeat="auth in Book.Author">
+                        <td>
+                            {{ auth }}
+                            <br />
+                        </td>
+                    </tr>
+                </table>
+            </td>
+            <td>
+                {{Book.Publications}}
+            </td>
+            <td>{{Book.Count}}</td>
+            <td>
+                <input type="button" value="Edit" ng-click="updateRecord(Book._id.$oid)" />
+            </td>
+            <td>
+                <input type="button" value="Delete" ng-click="deleteRecord(Book._id.$oid)" />
+            </td>
+        </tr>
+    </table>
+
+    
+
+    <div class="form-group">
+  <label class="col-md-4 control-label" for="btnSave"></label>
+  <div class="col-md-4">
+    <button id="btnSave" name="btnSave" class="btn btn-success" ng-click="exportData()">Export</button>
+  </div>
+</div>
+</div>
+
+---------------End ListBooks-------------------------------
+-----------------update books-----------------------------
+<form class="form-horizontal">
+<fieldset>
+
+<!-- Form Name -->
+<legend>Book Entry</legend>
+
+<!-- Text input-->
+<div class="form-group">
+  <label class="col-md-4 control-label" for="txtbookTitle">Book Title</label>  
+  <div class="col-md-4">
+   <input type="hidden" ng-model="Book._id.$oid" />
+  <input id="txtbookTitle" name="txtbookTitle" type="text" placeholder="Book Title" class="form-control input-md" ng-model="Book.Title"/>
+    
+  </div>
+</div>
+
+<!-- Select Multiple -->
+<div class="form-group">
+  <label class="col-md-4 control-label" for="ddAuthor">Author</label>
+  <div class="col-md-4">
+    <select id="ddAuthor" name="ddAuthor" class="form-control" multiple="multiple" ng-model="Book.Author">
+      <option value="A. A. Milne" >A. A. Milne</option>
+      <option value="Agatha Christie" >Agatha Christie</option>
+      <option value="Amish Tripathi" >Amish Tripathi</option>
+      <option value="Graham Greene" >Graham Greene</option>
+      <option value="Yashwant Kanetkar" >Yashwant Kanetkar</option>
+      <option value="Milan Kundera" >Milan Kundera</option>
+      <option value="R. K. Narayan" >R. K. Narayan</option>
+    </select>
+  </div>
+</div>
+
+<div class="form-group">
+  <label class="col-md-4 control-label" for="ddPublication">Publications</label>
+  <div class="col-md-4">
+    <select id="ddPublication" name="ddPublication" class="form-control" ng-model="Book.Publications">
+      <option value="IEEE" >IEEE</option>
+      <option value="Oxford" >Oxford</option>
+      <option value="Sun" >Sun</option>
+      <option value="Pragati" >Pragati</option>
+      <option value="Navneet" >Navneet</option>
+    </select>
+  </div>
+</div>
+
+
+
+<!-- Text input-->
+<div class="form-group">
+  <label class="col-md-4 control-label" for="txtISBN">ISBN Number</label>  
+  <div class="col-md-4">
+  <input id="txtISBN" name="txtISBN" type="text" placeholder="ISBN Number" class="form-control input-md" ng-model="Book.ISBN"/>
+    
+  </div>
+</div>
+
+
+<!-- Multiple Checkboxes -->
+<div class="form-group">
+  <label class="col-md-4 control-label" for="cbCategory">Category</label>
+  <div class="col-md-4">
+  <div class="checkbox">
+    <label for="cbCategory-0">
+      <input type="checkbox" ng-model="Book.Category.Educational" name="cbCategory" id="cbCategory-0" value="Educational">
+      Educational
+    </label>
+	</div>
+  <div class="checkbox">
+    <label for="cbCategory-1">
+      <input type="checkbox" ng-model="Book.Category.Fiction" name="cbCategory" id="cbCategory-1" value="Fiction">
+      Fiction
+    </label>
+	</div>
+  <div class="checkbox">
+    <label for="cbCategory-2">
+      <input type="checkbox" ng-model="Book.Category.Nonfiction" name="cbCategory" id="cbCategory-2" value="Non-fiction">
+      Non-fiction
+    </label>
+	</div>
+  <div class="checkbox">
+    <label for="cbCategory-3">
+      <input type="checkbox" ng-model="Book.Category.Magzine" name="cbCategory" id="cbCategory-3" value="Magzine">
+      Magzine
+    </label>
+	</div>
+  </div>
+</div>
+
+<!-- Multiple Radios -->
+<div class="form-group">
+  <label class="col-md-4 control-label" for="rdAdvanceLvl">Book Type</label>
+  <div class="col-md-4">
+  <div class="radio">
+    <label for="rdAdvanceLvl-0">
+      <input type="radio" ng-model="Book.BookType.Basic" name="rdAdvanceLvl" id="rdAdvanceLvl-0" value="Basic" >
+      Basic
+    </label>
+	</div>
+  <div class="radio">
+    <label for="rdAdvanceLvl-1">
+      <input type="radio" ng-model="Book.BookType.Intermediate" name="rdAdvanceLvl" id="rdAdvanceLvl-1" value="Intermediate">
+      Intermediate
+    </label>
+	</div>
+  <div class="radio">
+    <label for="rdAdvanceLvl-2">
+      <input type="radio"ng-model="Book.BookType.Advance" name="rdAdvanceLvl" id="rdAdvanceLvl-2" value="Advance">
+      Advance
+    </label>
+	</div>
+  </div>
+</div>
+
+<div class="form-group">
+  <label class="col-md-4 control-label" >Entry Date</label>
+  <div class="col-md-4">
+      <input type="date" class="form-control" ng-model="Book.EntryDate" />
+  </div>
+</div>
+
+<div class="form-group">
+  <label class="col-md-4 control-label" for="btnSave"></label>
+  <div class="col-md-4">
+    <button id="btnSave" name="btnSave" class="btn btn-success" ng-click="UpdateRecordById(Book._id.$oid)">Save</button>
+  </div>
+</div>
+
+</fieldset>
+</form>
+
+----------------end update books------------------------------
+------------------Add new member----------------------------
+
+<form class="form-horizontal">
+<fieldset>
+
+<!-- Form Name -->
+<legend>New Member Entry</legend>
+
+<!-- Text input-->
+<div class="form-group">
+  <label class="col-md-4 control-label" for="textinput">Membership Id</label>  
+  <div class="col-md-4">
+  <input ng-model="Member.MID" type="text" placeholder="Membership Id" class="form-control input-md">
+    
+  </div>
+</div>
+<!-- Text input-->
+<div class="form-group">
+  <label class="col-md-4 control-label" for="textinput">Name</label>  
+  <div class="col-md-4">
+  <input ng-model="Member.Name" type="text" placeholder="Name" class="form-control input-md">
+    
+  </div>
+</div>
+
+
+<!-- Text input-->
+<div class="form-group">
+  <label class="col-md-4 control-label" for="textinput">Mobile No</label>  
+  <div class="col-md-4">
+  <input ng-model="Member.MobileNo" type="text" placeholder="Mobile No" class="form-control input-md">
+  
+  </div>
+</div>
+
+<!-- Button -->
+<div class="form-group">
+  <label class="col-md-4 control-label" for="singlebutton"></label>
+  <div class="col-md-4">
+    <button id="singlebutton" name="singlebutton" class="btn btn-primary" ng-click="Register()">Save</button>
+  </div>
+</div>
+
+
+
+</fieldset>
+</form>
+
+
+-------------------end add new member---------------------------
+---------------------book issue-------------------------
+
+<form class="form-horizontal">
+<fieldset>
+
+<!-- Form Name -->
+<legend>Form Name</legend>
+
+
+
+<!-- Text input-->
+<div class="form-group">
+  <label class="col-md-4 control-label" for="textinput">Membership Id</label>  
+  <div class="col-md-4">
+  <input ng-model="Issue.MID" type="text" placeholder="Membership Id" class="form-control input-md">
+    
+  </div>
+</div>
+
+<!-- Select Basic -->
+<div class="form-group">
+  <label class="col-md-4 control-label" for="selectbasic">Book</label>
+  <div class="col-md-4">
+    <select ng-model="Issue.Title" ng-options="item.Title as item.Title for item in BookList| unique:'Title'" class="form-control">
+     <option >----SELECT DISTRICT-----</option>
+    </select>
+  </div>
+</div>
+
+<!-- Button -->
+<div class="form-group">
+  <label class="col-md-4 control-label" for="singlebutton"></label>
+  <div class="col-md-4">
+    <button ng-click="IssueBook()" class="btn btn-primary">Save</button>
+  </div>
+</div>
+
+
+
+</fieldset>
+</form>
+
+
+---------------------end book issue-------------------------
+
+------------------web.config----------------------------
+
+   <add key="MongoDBServer" value="mongodb://localhost:27017"/>
+    <add key="DBName" value="LibraryMS"/>
+
+-------------------end web.config---------------------------
+
+----------------------DBUtility------------------------
+
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using MongoDB.Bson;
+using MongoDB.Driver;
+using MongoDB.Driver.Builders;
+using MongoDB.Bson.IO;
+using MongoDB.Bson.Serialization;
+using System.Configuration;
+
+
+namespace LibraryMS.DAL
+{
+    public class DbUtility
+    {
+        protected MongoDatabase mongoDB { get; set; }
+        public DbUtility()
+        {
+            var mongoClient = new MongoClient(Convert.ToString(ConfigurationManager.AppSettings["MongoDBServer"]));
+            MongoServer Server = mongoClient.GetServer();
+            mongoDB = Server.GetDatabase(Convert.ToString(ConfigurationManager.AppSettings["DBName"]));
+        }
+        public bool SaveDocument(string objectToSave, string collectionName)
+        {
+            var document = BsonSerializer.Deserialize<BsonDocument>(objectToSave);
+            var collection = mongoDB.GetCollection<BsonDocument>(collectionName);
+
+            collection.Insert(document);
+            return true;
+        }
+        public bool UpdateDocument(string objectToSave, string collectionName, string key, string value)
+        {
+
+            var document = BsonSerializer.Deserialize<BsonDocument>(objectToSave);
+            var collection = mongoDB.GetCollection<BsonDocument>(collectionName);
+            collection.Update(
+            Query.EQ(key, value),
+            Update.Replace(document),
+            UpdateFlags.Upsert);
+
+            return true;
+        }
+        public bool UpdateDocumentByObjectId(string objectToSave, string collectionName)
+        {
+
+            var document = BsonSerializer.Deserialize<BsonDocument>(objectToSave);
+            var collection = mongoDB.GetCollection<BsonDocument>(collectionName);
+            collection.Save(document);
+            return true;
+        }
+        public bool DeleteDocumentByObjectId(string collectionName, ObjectId id)
+        {
+            var collection = mongoDB.GetCollection<BsonDocument>(collectionName);
+            var query = Query.EQ("_id", id);
+            collection.Remove(query);
+            return true;
+        }
+        public bool DeleteDocument(string collectionName, string key, string id)
+        {
+            var collection = mongoDB.GetCollection<BsonDocument>(collectionName);
+            var query = Query.EQ(key, id);
+            collection.Remove(query);
+            return true;
+        }
+        public string GetAllDocuments(string collectionName)
+        {
+            var collection = mongoDB.GetCollection(collectionName);
+            return collection.FindAllAs<BsonDocument>().SetFields(Fields.Exclude("_id")).ToJson();
+        }
+        public string GetAllDocumentsWithObjectId(string collectionName)
+        {
+            var collection = mongoDB.GetCollection(collectionName);
+            var jsonSettings = new JsonWriterSettings { OutputMode = JsonOutputMode.Strict };
+            return collection.FindAllAs<BsonDocument>().ToJson(jsonSettings);
+        }
+
+        public string GetAllDocumentsWithObjectIdGroup(string collectionName)
+        {
+            var collection = mongoDB.GetCollection(collectionName);
+
+            var group = new BsonDocument 
+                { 
+                    { "$group", 
+                        new BsonDocument 
+                            { 
+                                { "_id", new BsonDocument 
+                                             { 
+                                                 { 
+                                                     "Title","$Title"
+                                                 } 
+                                             } 
+                                }, 
+                                { 
+                                    "Count", new BsonDocument 
+                                                 { 
+                                                     { 
+                                                         "$sum", 1 
+                                                     } 
+                                                 } 
+                                } 
+                            } 
+                  } 
+                };
+
+            var pipeline = new[] { group };
+            var result = collection.Aggregate(pipeline);
+
+            var matchingExamples = result.ResultDocuments
+                .Select(x => x.ToBsonDocument())
+                .ToList();
+
+            var jsonSettings = new JsonWriterSettings { OutputMode = JsonOutputMode.Strict };
+            List<BsonDocument> countlst = matchingExamples.ToList();
+
+            string json = GetAllDocumentsWithObjectId("Book");
+
+            var mbd = mongoDB.GetCollection(collectionName);
+            List<BsonDocument> doclst = mbd.FindAllAs<BsonDocument>().ToList();
+
+
+            foreach (var b in doclst)
+            {
+                
+                foreach (BsonDocument c in countlst)
+                {
+                    var a = c["_id"].AsBsonDocument;
+
+                    if (b["Title"].AsString.Equals(a["Title"].AsString))
+                    {
+                        b.Add("Count", c["Count"].AsNullableInt32);
+                    }
+
+                }
+
+            }
+
+            return doclst.ToJson(jsonSettings);
+
+            
+            //return collection.FindAllAs<BsonDocument>().ToJson(jsonSettings);
+        }
+
+        public string GetDocumentById(string collectionName, string key, string value)
+        {
+            var jsonSettings = new JsonWriterSettings { OutputMode = JsonOutputMode.Strict };
+            var collection = mongoDB.GetCollection(collectionName);
+            var query = Query.EQ(key, value);
+            return collection.FindAs<BsonDocument>(query).SetFields(Fields.Exclude("_id")).ToJson(jsonSettings);
+        }
+        public string GetDocumentById(string collectionName, string key, ObjectId value)
+        {
+            var jsonSettings = new JsonWriterSettings { OutputMode = JsonOutputMode.Strict };
+            var collection = mongoDB.GetCollection(collectionName);
+            var query = Query.EQ(key, value);
+            return collection.FindAs<BsonDocument>(query).SetFields(Fields.Exclude("_id")).ToJson(jsonSettings);
+        }
+        public string GetDocumentByIdWithObjectId(string collectionName, string key, string value)
+        {
+            var jsonSettings = new JsonWriterSettings { OutputMode = JsonOutputMode.Strict };
+            var collection = mongoDB.GetCollection(collectionName);
+            var query = Query.EQ(key, value);
+            return collection.FindAs<BsonDocument>(query).ToJson(jsonSettings);
+        }
+        public string GetDocumentByIdWithObjectId(string collectionName, string key, ObjectId value)
+        {
+            var jsonSettings = new JsonWriterSettings { OutputMode = JsonOutputMode.Strict };
+            var collection = mongoDB.GetCollection(collectionName);
+            var query = Query.EQ(key, value);
+            return collection.FindAs<BsonDocument>(query).ToJson(jsonSettings);
+        }
+        public MongoCollection GetCollection(string collectionName)
+        {
+            return mongoDB.GetCollection(collectionName);
+        }
+
+        public long GetCountOfCollection(string collectionName)
+        {
+            var collection = mongoDB.GetCollection(collectionName);
+            return collection.Count();
+        }
+        public long GetMaxOfAttribute(string collectionName, string attributename)
+        {
+            var collection = mongoDB.GetCollection(collectionName);
+            var max = collection.FindAll().SetSortOrder(SortBy.Descending(attributename)).SetLimit(1).FirstOrDefault().ToArray()[1].Value.ToInt64();
+            return max;
+        }
+
+
+        #region Model Based Operations
+        /// <summary>
+        /// Save The Document, override the ToString() method in the model to provide the collection name
+        /// </summary>
+        /// <param name="objectToSave"></param>
+        /// <returns></returns>
+        public bool SaveCollection(object objectToSave)
+        {
+            string jsonString = Newtonsoft.Json.JsonConvert.SerializeObject(objectToSave);
+            BsonDocument document = BsonDocument.Parse(jsonString);
+
+            var collection = mongoDB.GetCollection(objectToSave.ToString());
+
+            collection.Insert(objectToSave);
+            return true;
+        }
+
+        public bool SaveCollection(object objectToSave, string collectionName)
+        {
+            string jsonString = Newtonsoft.Json.JsonConvert.SerializeObject(objectToSave);
+            BsonDocument document = BsonDocument.Parse(jsonString);
+
+            var collection = mongoDB.GetCollection(collectionName);
+
+            collection.Insert(objectToSave);
+            return true;
+        }
+
+        public MongoCollection<T> GetAllDocuments<T>(string collectionName)
+        {
+            return mongoDB.GetCollection<T>(collectionName);
+        }
+        #endregion
+    }
+}
+
+-----------------------end DBUtility-----------------------
+
+--------------------Librarycontroller--------------------------
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+using LibraryMS.DAL;
+using MongoDB.Bson;
+
+namespace LibraryMS.Controllers
+{
+    public class LibraryController : Controller
+    {
+        //
+        // GET: /Library/
+
+        public ActionResult Index()
+        {
+            return View();
+        }
+
+        public ActionResult AddNewRecord()
+        {
+            return View();
+        }
+
+        public bool Add(string Book)
+        {
+            return new DbUtility().SaveDocument(Book, "Book");
+        }
+
+        public ActionResult ListRecords()
+        {
+            return View();
+        }
+
+        public string Get()
+        {
+            return new DbUtility().GetAllDocumentsWithObjectIdGroup("Book");
+        }
+
+        public bool Delete(string id)
+        {
+            return new DbUtility().DeleteDocumentByObjectId("Book", ObjectId.Parse(id));
+        }
+
+        public ActionResult UpdateRecord()
+        {
+            return View();
+        }
+
+        public string GetByID(string id)
+        {
+            return new DbUtility().GetDocumentByIdWithObjectId("Book", "_id", ObjectId.Parse(id));
+        }
+
+        public bool UpdateByID(string id, string Book)
+        {
+            return new DbUtility().UpdateDocumentByObjectId(Book, "Book");
+        }
+
+        public ActionResult AddMember()
+        {
+            return View();
+        }
+
+        public bool RegisterMember(string member)
+        {
+            return new DbUtility().SaveDocument(member, "Member");
+        }
+
+        public ActionResult BookIssue()
+        {
+            return View();
+        }
+
+        public bool IssueBook(string issue)
+        {
+            return new DbUtility().SaveDocument(issue, "Issue");
+        }
+    }
+}
+
+
+----------------End LibraryController------------------------------
+----------------------------------------------
+----------------------------------------------
+----------------------------------------------
+----------------------------------------------
+----------------------------------------------
+----------------------------------------------
+----------------------------------------------
+----------------------------------------------
+----------------------------------------------
+----------------------------------------------
